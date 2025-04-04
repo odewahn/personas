@@ -23,8 +23,10 @@ Requirements:
     Python 3.7-3.11 (Gensim is not compatible with Python 3.13)
     pip install spacy nltk pandas numpy matplotlib seaborn textstat scikit-learn gensim
     
-    # Install spaCy models manually before running:
-    python -m spacy download en_core_web_sm  # Smaller model, or use en_core_web_md/lg for better results
+    # Install spaCy models manually before running (choose one):
+    python -m spacy download en_core_web_sm  # Small model (about 13MB)
+    python -m spacy download en_core_web_md  # Medium model with word vectors (about 40MB)
+    python -m spacy download en_core_web_lg  # Large model with word vectors (about 560MB)
     
     # NLTK data will be downloaded automatically when the script runs
     
@@ -714,31 +716,48 @@ def perform_topic_modeling(corpus_data: Dict[str, Any]) -> Dict[str, Any]:
 
     corpus = [dictionary.doc2bow(doc) for doc in tokenized_docs]
 
+    # Check if we have any terms left after filtering
+    if len(dictionary) == 0 or all(len(doc) == 0 for doc in corpus):
+        print("Warning: Not enough common terms found for topic modeling.")
+        return {
+            "num_topics": 0,
+            "topics": [],
+            "error": "Not enough common terms found for topic modeling."
+        }
+
     # Determine appropriate number of topics based on corpus size
     num_topics = min(10, max(3, len(documents) // 2))
 
-    # Train LDA model
-    lda_model = LdaModel(
-        corpus=corpus,
-        id2word=dictionary,
-        num_topics=num_topics,
-        passes=10,
-        alpha="auto",
-        random_state=42,
-    )
-
-    # Extract topics
-    topics = []
-    for topic_id in range(num_topics):
-        topic_words = lda_model.show_topic(topic_id, topn=10)
-        topics.append(
-            {
-                "topic_id": topic_id,
-                "words": [(word, round(prob, 4)) for word, prob in topic_words],
-            }
+    try:
+        # Train LDA model
+        lda_model = LdaModel(
+            corpus=corpus,
+            id2word=dictionary,
+            num_topics=num_topics,
+            passes=10,
+            alpha="auto",
+            random_state=42,
         )
 
-    return {"num_topics": num_topics, "topics": topics}
+        # Extract topics
+        topics = []
+        for topic_id in range(num_topics):
+            topic_words = lda_model.show_topic(topic_id, topn=10)
+            topics.append(
+                {
+                    "topic_id": topic_id,
+                    "words": [(word, round(prob, 4)) for word, prob in topic_words],
+                }
+            )
+
+        return {"num_topics": num_topics, "topics": topics}
+    except ValueError as e:
+        print(f"Topic modeling failed: {e}")
+        return {
+            "num_topics": 0,
+            "topics": [],
+            "error": str(e)
+        }
 
 
 def perform_liwc_analysis(corpus_data: Dict[str, Any]) -> Dict[str, float]:
@@ -1514,7 +1533,19 @@ def main():
     parser.add_argument(
         "--output", type=str, default="expert_profile", help="Output file prefix"
     )
+    parser.add_argument(
+        "--install-spacy", action="store_true", help="Install spaCy model before running"
+    )
     args = parser.parse_args()
+    
+    # Install spaCy model if requested
+    if args.install_spacy:
+        print("Installing spaCy small model...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+            print("spaCy model installed successfully!")
+        except subprocess.CalledProcessError:
+            print("Failed to install spaCy model. Continuing with basic NLP processing.")
 
     # Get list of files to analyze
     corpus_files = []
@@ -1538,10 +1569,16 @@ def main():
     print(f"Found {len(corpus_files)} files to analyze")
 
     # Generate the profile
-    profile = generate_persona_profile(corpus_files, args.output)
-
-    print("\nProfile generation complete!")
-    print(f"Results saved with prefix: {args.output}")
+    try:
+        profile = generate_persona_profile(corpus_files, args.output)
+        print("\nProfile generation complete!")
+        print(f"Results saved with prefix: {args.output}")
+    except Exception as e:
+        print(f"\nError during profile generation: {e}")
+        import traceback
+        traceback.print_exc()
+        print("\nTry installing a spaCy model with: python -m spacy download en_core_web_sm")
+        print("Or run with the --install-spacy flag to automatically install it.")
 
 
 if __name__ == "__main__":
