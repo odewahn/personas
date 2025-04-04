@@ -884,7 +884,7 @@ def perform_liwc_analysis(corpus_data: Dict[str, Any]) -> Dict[str, float]:
 
     # Process the text
     full_text = " ".join(corpus_data["documents"]).lower()
-    words = word_tokenize(full_text)
+    words = custom_word_tokenize(full_text)
     word_count = len(words)
 
     # Count occurrences of each category
