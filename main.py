@@ -20,6 +20,7 @@ Usage:
     python stylometric_profiler.py --corpus_dir "./expert_corpus" --output "expert_profile"
 
 Requirements:
+    Python 3.7-3.11 (Gensim is not compatible with Python 3.13)
     pip install spacy nltk pandas numpy matplotlib seaborn textstat scikit-learn gensim
     python -m spacy download en_core_web_lg
     python -m nltk.downloader punkt stopwords
