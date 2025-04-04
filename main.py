@@ -21,12 +21,12 @@ Usage:
 
 Requirements:
     Python 3.7-3.11 (Gensim is not compatible with Python 3.13)
-    pip install spacy nltk pandas numpy matplotlib seaborn textstat scikit-learn gensim
+    uv pip install spacy nltk pandas numpy matplotlib seaborn textstat scikit-learn gensim
     
     # Install spaCy models manually before running (choose one):
-    python -m spacy download en_core_web_sm  # Small model (about 13MB)
-    python -m spacy download en_core_web_md  # Medium model with word vectors (about 40MB)
-    python -m spacy download en_core_web_lg  # Large model with word vectors (about 560MB)
+    uv pip install en-core-web-sm  # Small model (about 13MB)
+    uv pip install en-core-web-md  # Medium model with word vectors (about 40MB)
+    uv pip install en-core-web-lg  # Large model with word vectors (about 560MB)
     
     # NLTK data will be downloaded automatically when the script runs
     
@@ -1542,10 +1542,11 @@ def main():
     if args.install_spacy:
         print("Installing spaCy small model...")
         try:
-            subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+            # Try using uv to install the model directly
+            subprocess.check_call(["uv", "pip", "install", "en-core-web-sm"])
             print("spaCy model installed successfully!")
-        except subprocess.CalledProcessError:
-            print("Failed to install spaCy model. Continuing with basic NLP processing.")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("Failed to install spaCy model with uv. Continuing with basic NLP processing.")
 
     # Get list of files to analyze
     corpus_files = []
@@ -1577,7 +1578,7 @@ def main():
         print(f"\nError during profile generation: {e}")
         import traceback
         traceback.print_exc()
-        print("\nTry installing a spaCy model with: python -m spacy download en_core_web_sm")
+        print("\nTry installing a spaCy model with: uv pip install en-core-web-sm")
         print("Or run with the --install-spacy flag to automatically install it.")
 
 
