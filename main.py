@@ -35,6 +35,7 @@ with reduced accuracy for syntactic analysis.
 import os
 import sys
 import json
+import re
 import argparse
 import subprocess
 from collections import Counter
@@ -48,7 +49,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 # NLP libraries
 import spacy
 import nltk
-from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.util import ngrams
 import textstat
@@ -61,11 +62,34 @@ from gensim.corpora import Dictionary
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Custom sentence tokenizer to avoid NLTK's punkt_tab issue
+def custom_sent_tokenize(text):
+    """
+    A simple sentence tokenizer that doesn't rely on NLTK's punkt_tab.
+    This handles common sentence endings and preserves paragraph structure.
+    """
+    # Handle common sentence endings (., !, ?)
+    # This regex looks for sentence endings followed by space and uppercase letter
+    # or sentence endings at the end of the text
+    sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])$', text)
+    
+    # Further split by newlines that likely indicate paragraph breaks
+    result = []
+    for sentence in sentences:
+        # Split by double newlines (paragraphs)
+        parts = re.split(r'\n\s*\n', sentence)
+        for part in parts:
+            # Split by single newlines that are followed by uppercase letters (likely new sentences)
+            subparts = re.split(r'\n(?=[A-Z])', part)
+            result.extend(subparts)
+    
+    # Clean up the results
+    return [s.strip() for s in result if s.strip()]
+
 # Download required resources if not already available
 def download_nltk_data():
     """Download required NLTK data packages if they're not already available."""
     resources = [
-        ('punkt', 'tokenizers/punkt'),
         ('stopwords', 'corpora/stopwords')
     ]
     
@@ -119,14 +143,8 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
                 class SimpleDoc:
                     def __init__(self, text):
                         self.text = text
-                        # Make sure we have the punkt tokenizer
-                        try:
-                            self.sents = [SimpleSpan(s) for s in sent_tokenize(text)]
-                        except LookupError:
-                            # If we get here, try downloading punkt again
-                            print("Downloading punkt tokenizer...")
-                            nltk.download('punkt', quiet=False)
-                            self.sents = [SimpleSpan(s) for s in sent_tokenize(text)]
+                        # Use our custom sentence tokenizer instead of NLTK's
+                        self.sents = [SimpleSpan(s) for s in custom_sent_tokenize(text)]
                 
                 class SimpleSpan:
                     def __init__(self, text):
@@ -164,8 +182,8 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
                 # Store the full document
                 documents.append(text)
 
-                # Split into sentences and store
-                doc_sentences = sent_tokenize(text)
+                # Split into sentences and store using our custom tokenizer
+                doc_sentences = custom_sent_tokenize(text)
                 sentences.extend(doc_sentences)
         except UnicodeDecodeError:
             # Try with different encoding if UTF-8 fails
