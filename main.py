@@ -156,36 +156,69 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
                     print("No spaCy models found. Using basic NLP processing instead.")
                     print("To use advanced features, please install a spaCy model manually with:")
                     print("uv pip install en-core-web-sm")
-                spacy_available = False
-                # Create a minimal replacement for spaCy's nlp
-                class SimpleDoc:
-                    def __init__(self, text):
-                        self.text = text
-                        # Use our custom sentence tokenizer instead of NLTK's
-                        self.sents = [SimpleSpan(s) for s in custom_sent_tokenize(text)]
-                
-                class SimpleSpan:
-                    def __init__(self, text):
-                        self.text = text
-                        words = custom_word_tokenize(text)
-                        self.tokens = [SimpleToken(w) for w in words]
+                    spacy_available = False
+                    # Create a minimal replacement for spaCy's nlp
+                    class SimpleDoc:
+                        def __init__(self, text):
+                            self.text = text
+                            # Use our custom sentence tokenizer instead of NLTK's
+                            self.sents = [SimpleSpan(s) for s in custom_sent_tokenize(text)]
                     
-                    def __len__(self):
-                        return len(self.tokens)
+                    class SimpleSpan:
+                        def __init__(self, text):
+                            self.text = text
+                            words = custom_word_tokenize(text)
+                            self.tokens = [SimpleToken(w) for w in words]
+                        
+                        def __len__(self):
+                            return len(self.tokens)
+                        
+                        def __iter__(self):
+                            return iter(self.tokens)
                     
-                    def __iter__(self):
-                        return iter(self.tokens)
+                    class SimpleToken:
+                        def __init__(self, text):
+                            self.text = text
+                            self.pos_ = "NOUN" if text[0].isupper() else "VERB" if text.endswith(('ing', 'ed')) else "ADJ" if text.endswith(('ly')) else "DET" if text.lower() in ('a', 'an', 'the') else "ADP" if text.lower() in ('in', 'on', 'at', 'by', 'for') else "NOUN"
+                            self.dep_ = "nsubj" if text[0].isupper() else "ROOT" if self.pos_ == "VERB" else "dobj" if self.pos_ == "NOUN" else "det" if self.pos_ == "DET" else "prep" if self.pos_ == "ADP" else "amod"
+                    
+                    def simple_nlp(text):
+                        return SimpleDoc(text)
+                    
+                    nlp = simple_nlp
+    except Exception as e:
+        print(f"Error loading spaCy models: {e}")
+        print("Using basic NLP processing instead.")
+        spacy_available = False
+        # Create a minimal replacement for spaCy's nlp if not already defined
+        if 'nlp' not in locals():
+            class SimpleDoc:
+                def __init__(self, text):
+                    self.text = text
+                    self.sents = [SimpleSpan(s) for s in custom_sent_tokenize(text)]
+            
+            class SimpleSpan:
+                def __init__(self, text):
+                    self.text = text
+                    words = custom_word_tokenize(text)
+                    self.tokens = [SimpleToken(w) for w in words]
                 
-                class SimpleToken:
-                    def __init__(self, text):
-                        self.text = text
-                        self.pos_ = "NOUN" if text[0].isupper() else "VERB" if text.endswith(('ing', 'ed')) else "ADJ" if text.endswith(('ly')) else "DET" if text.lower() in ('a', 'an', 'the') else "ADP" if text.lower() in ('in', 'on', 'at', 'by', 'for') else "NOUN"
-                        self.dep_ = "nsubj" if text[0].isupper() else "ROOT" if self.pos_ == "VERB" else "dobj" if self.pos_ == "NOUN" else "det" if self.pos_ == "DET" else "prep" if self.pos_ == "ADP" else "amod"
+                def __len__(self):
+                    return len(self.tokens)
                 
-                def simple_nlp(text):
-                    return SimpleDoc(text)
-                
-                nlp = simple_nlp
+                def __iter__(self):
+                    return iter(self.tokens)
+            
+            class SimpleToken:
+                def __init__(self, text):
+                    self.text = text
+                    self.pos_ = "NOUN" if text[0].isupper() else "VERB" if text.endswith(('ing', 'ed')) else "ADJ" if text.endswith(('ly')) else "DET" if text.lower() in ('a', 'an', 'the') else "ADP" if text.lower() in ('in', 'on', 'at', 'by', 'for') else "NOUN"
+                    self.dep_ = "nsubj" if text[0].isupper() else "ROOT" if self.pos_ == "VERB" else "dobj" if self.pos_ == "NOUN" else "det" if self.pos_ == "DET" else "prep" if self.pos_ == "ADP" else "amod"
+            
+            def simple_nlp(text):
+                return SimpleDoc(text)
+            
+            nlp = simple_nlp
 
     # Initialize storage structures
     documents = []
