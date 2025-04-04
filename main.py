@@ -22,8 +22,15 @@ Usage:
 Requirements:
     Python 3.7-3.11 (Gensim is not compatible with Python 3.13)
     pip install spacy nltk pandas numpy matplotlib seaborn textstat scikit-learn gensim
+    
+    # Install spaCy models manually before running:
     python -m spacy download en_core_web_sm  # Smaller model, or use en_core_web_md/lg for better results
+    
+    # Install NLTK data:
     python -m nltk.downloader punkt stopwords
+    
+Note: If spaCy models are not installed, the script will fall back to basic NLP processing
+with reduced accuracy for syntactic analysis.
 """
 
 import os
@@ -83,6 +90,7 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
     print(f"Processing {len(corpus_files)} documents...")
 
     # Load spaCy model for linguistic analysis
+    spacy_available = True
     try:
         nlp = spacy.load("en_core_web_lg")
     except OSError:
@@ -95,10 +103,38 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
                 print("Medium model not found. Trying to load small model...")
                 nlp = spacy.load("en_core_web_sm")
             except OSError:
-                print("No spaCy models found. Installing the small model...")
-                import subprocess
-                subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
-                nlp = spacy.load("en_core_web_sm")
+                print("No spaCy models found. Using basic NLP processing instead.")
+                print("To use advanced features, please install a spaCy model manually with:")
+                print("python -m spacy download en_core_web_sm")
+                spacy_available = False
+                # Create a minimal replacement for spaCy's nlp
+                class SimpleDoc:
+                    def __init__(self, text):
+                        self.text = text
+                        self.sents = [SimpleSpan(s) for s in sent_tokenize(text)]
+                
+                class SimpleSpan:
+                    def __init__(self, text):
+                        self.text = text
+                        words = word_tokenize(text)
+                        self.tokens = [SimpleToken(w) for w in words]
+                    
+                    def __len__(self):
+                        return len(self.tokens)
+                    
+                    def __iter__(self):
+                        return iter(self.tokens)
+                
+                class SimpleToken:
+                    def __init__(self, text):
+                        self.text = text
+                        self.pos_ = "NOUN" if text[0].isupper() else "VERB" if text.endswith(('ing', 'ed')) else "ADJ" if text.endswith(('ly')) else "DET" if text.lower() in ('a', 'an', 'the') else "ADP" if text.lower() in ('in', 'on', 'at', 'by', 'for') else "NOUN"
+                        self.dep_ = "nsubj" if text[0].isupper() else "ROOT" if self.pos_ == "VERB" else "dobj" if self.pos_ == "NOUN" else "det" if self.pos_ == "DET" else "prep" if self.pos_ == "ADP" else "amod"
+                
+                def simple_nlp(text):
+                    return SimpleDoc(text)
+                
+                nlp = simple_nlp
 
     # Initialize storage structures
     documents = []
@@ -133,11 +169,11 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
 
     print(f"Processed {len(documents)} documents with {len(sentences)} total sentences")
 
-    # Process documents with spaCy (for more detailed linguistic analysis)
-    print("Performing linguistic analysis with spaCy...")
+    # Process documents with spaCy or fallback (for linguistic analysis)
+    print("Performing linguistic analysis...")
     nlp_docs = []
     for doc in documents:
-        # Process each document with spaCy, limiting length if needed
+        # Process each document, limiting length if needed
         if len(doc) > 1000000:  # If document is very large
             chunks = [doc[i : i + 1000000] for i in range(0, len(doc), 1000000)]
             for chunk in chunks:
@@ -311,43 +347,52 @@ def analyze_syntactic_patterns(corpus_data: Dict[str, Any]) -> Dict[str, Any]:
     pos_patterns = []
     clause_counts = []
 
-    for doc in nlp_docs:
-        # Analyze each sentence
-        for sent in doc.sents:
-            # Skip very short sentences as they might be headers or incomplete
-            if len(sent) < 3:
-                continue
+    try:
+        for doc in nlp_docs:
+            # Analyze each sentence
+            for sent in doc.sents:
+                # Skip very short sentences as they might be headers or incomplete
+                if len(sent) < 3:
+                    continue
 
-            # Extract POS sequence
-            pos_seq = [token.pos_ for token in sent]
-            pos_patterns.append(" ".join(pos_seq))
+                # Extract POS sequence
+                pos_seq = [token.pos_ for token in sent]
+                pos_patterns.append(" ".join(pos_seq))
 
-            # Extract dependency relations
-            dep_seq = [token.dep_ for token in sent]
-            dependency_patterns.append(" ".join(dep_seq))
+                # Extract dependency relations
+                dep_seq = [token.dep_ for token in sent]
+                dependency_patterns.append(" ".join(dep_seq))
 
-            # Rough estimate of clauses (based on verbs)
-            # More sophisticated clause detection would require a constituency parser
-            verbs = [token for token in sent if token.pos_ in ("VERB", "AUX")]
-            clause_counts.append(len(verbs))
+                # Rough estimate of clauses (based on verbs)
+                # More sophisticated clause detection would require a constituency parser
+                verbs = [token for token in sent if token.pos_ in ("VERB", "AUX")]
+                clause_counts.append(len(verbs))
 
-    # Calculate voice usage (active vs. passive)
-    passive_count = 0
-    active_count = 0
+        # Calculate voice usage (active vs. passive)
+        passive_count = 0
+        active_count = 0
 
-    for doc in nlp_docs:
-        for sent in doc.sents:
-            # A simple heuristic for passive voice detection
-            if any(token.dep_ == "auxpass" for token in sent):
-                passive_count += 1
-            else:
-                active_count += 1
+        for doc in nlp_docs:
+            for sent in doc.sents:
+                # A simple heuristic for passive voice detection
+                if any(token.dep_ == "auxpass" for token in sent):
+                    passive_count += 1
+                else:
+                    active_count += 1
 
-    total_sentences = passive_count + active_count
-    passive_ratio = passive_count / total_sentences if total_sentences > 0 else 0
+        total_sentences = passive_count + active_count
+        passive_ratio = passive_count / total_sentences if total_sentences > 0 else 0
 
-    # Calculate average clauses per sentence
-    avg_clauses = np.mean(clause_counts) if clause_counts else 0
+        # Calculate average clauses per sentence
+        avg_clauses = np.mean(clause_counts) if clause_counts else 0
+    except (AttributeError, TypeError) as e:
+        # Fallback if we're using the simple NLP implementation
+        print(f"Using simplified syntactic analysis due to: {e}")
+        # Provide default values for syntactic analysis
+        avg_clauses = 0
+        passive_ratio = 0
+        pos_patterns = []
+        dependency_patterns = []
 
     return {
         "avg_sentence_length": np.mean(sentence_lengths) if sentence_lengths else 0,
@@ -357,8 +402,8 @@ def analyze_syntactic_patterns(corpus_data: Dict[str, Any]) -> Dict[str, Any]:
         "sentence_length_std": np.std(sentence_lengths) if sentence_lengths else 0,
         "sentence_length_dist": sentence_lengths,
         "avg_clauses_per_sentence": avg_clauses,
-        "common_pos_patterns": Counter(pos_patterns).most_common(20),
-        "common_dependency_patterns": Counter(dependency_patterns).most_common(20),
+        "common_pos_patterns": Counter(pos_patterns).most_common(20) if pos_patterns else [],
+        "common_dependency_patterns": Counter(dependency_patterns).most_common(20) if dependency_patterns else [],
         "passive_voice_ratio": passive_ratio,
     }
 
