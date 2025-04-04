@@ -139,20 +139,23 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
     # Load spaCy model for linguistic analysis
     spacy_available = True
     try:
-        nlp = spacy.load("en_core_web_lg")
-    except OSError:
-        # Try to load a smaller model if the large one isn't available
+        # Try to load the small model first, which is most likely to be installed
         try:
-            print("Large model not found. Trying to load medium-sized model...")
-            nlp = spacy.load("en_core_web_md")
+            print("Trying to load small spaCy model...")
+            nlp = spacy.load("en_core_web_sm")
         except OSError:
+            # Then try medium and large models
             try:
-                print("Medium model not found. Trying to load small model...")
-                nlp = spacy.load("en_core_web_sm")
+                print("Small model not found. Trying medium-sized model...")
+                nlp = spacy.load("en_core_web_md")
             except OSError:
-                print("No spaCy models found. Using basic NLP processing instead.")
-                print("To use advanced features, please install a spaCy model manually with:")
-                print("python -m spacy download en_core_web_sm")
+                try:
+                    print("Medium model not found. Trying large model...")
+                    nlp = spacy.load("en_core_web_lg")
+                except OSError:
+                    print("No spaCy models found. Using basic NLP processing instead.")
+                    print("To use advanced features, please install a spaCy model manually with:")
+                    print("uv pip install en-core-web-sm")
                 spacy_available = False
                 # Create a minimal replacement for spaCy's nlp
                 class SimpleDoc:
@@ -1543,10 +1546,24 @@ def main():
         print("Installing spaCy small model...")
         try:
             # Try using uv to install the model directly
-            subprocess.check_call(["uv", "pip", "install", "en-core-web-sm"])
-            print("spaCy model installed successfully!")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("Failed to install spaCy model with uv. Continuing with basic NLP processing.")
+            # Use a different approach - download the wheel file and install it
+            import tempfile
+            import urllib.request
+            
+            # Create a temporary directory
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Download the wheel file
+                wheel_url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl"
+                wheel_file = os.path.join(tmpdir, "en_core_web_sm-3.7.0-py3-none-any.whl")
+                print(f"Downloading spaCy model from {wheel_url}...")
+                urllib.request.urlretrieve(wheel_url, wheel_file)
+                
+                # Install the wheel file
+                subprocess.check_call(["uv", "pip", "install", wheel_file])
+                print("spaCy model installed successfully!")
+        except Exception as e:
+            print(f"Failed to install spaCy model: {e}")
+            print("Continuing with basic NLP processing.")
 
     # Get list of files to analyze
     corpus_files = []
@@ -1578,8 +1595,9 @@ def main():
         print(f"\nError during profile generation: {e}")
         import traceback
         traceback.print_exc()
-        print("\nTry installing a spaCy model with: uv pip install en-core-web-sm")
-        print("Or run with the --install-spacy flag to automatically install it.")
+        print("\nTry installing a spaCy model with one of these commands:")
+        print("uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl")
+        print("Or run with the --install-spacy flag to automatically download and install it.")
 
 
 if __name__ == "__main__":
