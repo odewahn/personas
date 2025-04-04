@@ -22,13 +22,15 @@ Usage:
 Requirements:
     Python 3.7-3.11 (Gensim is not compatible with Python 3.13)
     pip install spacy nltk pandas numpy matplotlib seaborn textstat scikit-learn gensim
-    python -m spacy download en_core_web_lg
+    python -m spacy download en_core_web_sm  # Smaller model, or use en_core_web_md/lg for better results
     python -m nltk.downloader punkt stopwords
 """
 
 import os
+import sys
 import json
 import argparse
+import subprocess
 from collections import Counter
 from typing import List, Dict, Any, Tuple
 
@@ -81,7 +83,22 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
     print(f"Processing {len(corpus_files)} documents...")
 
     # Load spaCy model for linguistic analysis
-    nlp = spacy.load("en_core_web_lg")
+    try:
+        nlp = spacy.load("en_core_web_lg")
+    except OSError:
+        # Try to load a smaller model if the large one isn't available
+        try:
+            print("Large model not found. Trying to load medium-sized model...")
+            nlp = spacy.load("en_core_web_md")
+        except OSError:
+            try:
+                print("Medium model not found. Trying to load small model...")
+                nlp = spacy.load("en_core_web_sm")
+            except OSError:
+                print("No spaCy models found. Installing the small model...")
+                import subprocess
+                subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+                nlp = spacy.load("en_core_web_sm")
 
     # Initialize storage structures
     documents = []
