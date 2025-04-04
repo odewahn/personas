@@ -26,8 +26,7 @@ Requirements:
     # Install spaCy models manually before running:
     python -m spacy download en_core_web_sm  # Smaller model, or use en_core_web_md/lg for better results
     
-    # Install NLTK data:
-    python -m nltk.downloader punkt stopwords
+    # NLTK data will be downloaded automatically when the script runs
     
 Note: If spaCy models are not installed, the script will fall back to basic NLP processing
 with reduced accuracy for syntactic analysis.
@@ -63,15 +62,24 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Download required resources if not already available
-try:
-    nltk.data.find("tokenizers/punkt")
-except LookupError:
-    nltk.download("punkt")
+def download_nltk_data():
+    """Download required NLTK data packages if they're not already available."""
+    resources = [
+        ('punkt', 'tokenizers/punkt'),
+        ('stopwords', 'corpora/stopwords')
+    ]
+    
+    for resource, path in resources:
+        try:
+            nltk.data.find(path)
+            print(f"NLTK {resource} already downloaded.")
+        except LookupError:
+            print(f"Downloading NLTK {resource}...")
+            nltk.download(resource, quiet=False)
+            print(f"Downloaded NLTK {resource}.")
 
-try:
-    nltk.data.find("corpora/stopwords")
-except LookupError:
-    nltk.download("stopwords")
+# Download required NLTK data
+download_nltk_data()
 
 
 def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
@@ -111,7 +119,14 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
                 class SimpleDoc:
                     def __init__(self, text):
                         self.text = text
-                        self.sents = [SimpleSpan(s) for s in sent_tokenize(text)]
+                        # Make sure we have the punkt tokenizer
+                        try:
+                            self.sents = [SimpleSpan(s) for s in sent_tokenize(text)]
+                        except LookupError:
+                            # If we get here, try downloading punkt again
+                            print("Downloading punkt tokenizer...")
+                            nltk.download('punkt', quiet=False)
+                            self.sents = [SimpleSpan(s) for s in sent_tokenize(text)]
                 
                 class SimpleSpan:
                     def __init__(self, text):
