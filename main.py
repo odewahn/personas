@@ -49,7 +49,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 # NLP libraries
 import spacy
 import nltk
-from nltk.tokenize import word_tokenize
+# We'll implement our own word tokenizer to avoid NLTK's punkt_tab dependency
 from nltk.corpus import stopwords
 from nltk.util import ngrams
 import textstat
@@ -62,7 +62,7 @@ from gensim.corpora import Dictionary
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Custom sentence tokenizer to avoid NLTK's punkt_tab issue
+# Custom tokenizers to avoid NLTK's punkt_tab issue
 def custom_sent_tokenize(text):
     """
     A simple sentence tokenizer that doesn't rely on NLTK's punkt_tab.
@@ -85,6 +85,19 @@ def custom_sent_tokenize(text):
     
     # Clean up the results
     return [s.strip() for s in result if s.strip()]
+
+def custom_word_tokenize(text):
+    """
+    A simple word tokenizer that doesn't rely on NLTK's punkt_tab.
+    """
+    # First, replace punctuation with spaces around them to ensure they're separate tokens
+    # This regex adds spaces around punctuation
+    text = re.sub(r'([^\w\s])', r' \1 ', text)
+    
+    # Split by whitespace and filter out empty strings
+    words = [word for word in re.split(r'\s+', text) if word]
+    
+    return words
 
 # Download required resources if not already available
 def download_nltk_data():
@@ -149,7 +162,7 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
                 class SimpleSpan:
                     def __init__(self, text):
                         self.text = text
-                        words = word_tokenize(text)
+                        words = custom_word_tokenize(text)
                         self.tokens = [SimpleToken(w) for w in words]
                     
                     def __len__(self):
@@ -236,7 +249,7 @@ def extract_lexical_features(corpus_data: Dict[str, Any]) -> Dict[str, Any]:
 
     # Combine all text for word-level analysis
     all_text = " ".join(corpus_data["documents"])
-    words = word_tokenize(all_text.lower())
+    words = custom_word_tokenize(all_text.lower())
 
     # Remove stopwords for content word analysis
     stop_words = set(stopwords.words("english"))
@@ -685,7 +698,7 @@ def perform_topic_modeling(corpus_data: Dict[str, Any]) -> Dict[str, Any]:
     # Tokenize and prepare for topic modeling
     tokenized_docs = []
     for doc in documents:
-        tokens = word_tokenize(doc.lower())
+        tokens = custom_word_tokenize(doc.lower())
         # Remove stopwords and non-alphabetic tokens
         stop_words = set(stopwords.words("english"))
         filtered_tokens = [
@@ -1143,8 +1156,8 @@ def get_text_similarity(text1: str, text2: str) -> float:
     Returns:
         Similarity score between 0 and 1
     """
-    words1 = set(word_tokenize(text1.lower()))
-    words2 = set(word_tokenize(text2.lower()))
+    words1 = set(custom_word_tokenize(text1.lower()))
+    words2 = set(custom_word_tokenize(text2.lower()))
 
     # Jaccard similarity: intersection over union
     intersection = words1.intersection(words2)
