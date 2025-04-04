@@ -191,7 +191,7 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
                 with open(file_path, "r", encoding="latin-1") as file:
                     text = file.read()
                     documents.append(text)
-                    doc_sentences = sent_tokenize(text)
+                    doc_sentences = custom_sent_tokenize(text)
                     sentences.extend(doc_sentences)
             except Exception as e:
                 print(f"Error processing file {file_path}: {e}")
