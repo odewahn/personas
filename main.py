@@ -22,14 +22,14 @@ Usage:
 Requirements:
     Python 3.7-3.11 (Gensim is not compatible with Python 3.13)
     uv pip install spacy nltk pandas numpy matplotlib seaborn textstat scikit-learn gensim
-    
+
     # Install spaCy models manually before running (choose one):
     uv pip install en-core-web-sm  # Small model (about 13MB)
     uv pip install en-core-web-md  # Medium model with word vectors (about 40MB)
     uv pip install en-core-web-lg  # Large model with word vectors (about 560MB)
-    
+
     # NLTK data will be downloaded automatically when the script runs
-    
+
 Note: If spaCy models are not installed, the script will fall back to basic NLP processing
 with reduced accuracy for syntactic analysis.
 """
@@ -51,6 +51,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 # NLP libraries
 import spacy
 import nltk
+
 # We'll implement our own word tokenizer to avoid NLTK's punkt_tab dependency
 from nltk.corpus import stopwords
 from nltk.util import ngrams
@@ -64,6 +65,7 @@ from gensim.corpora import Dictionary
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
 # Custom tokenizers to avoid NLTK's punkt_tab issue
 def custom_sent_tokenize(text):
     """
@@ -73,20 +75,21 @@ def custom_sent_tokenize(text):
     # Handle common sentence endings (., !, ?)
     # This regex looks for sentence endings followed by space and uppercase letter
     # or sentence endings at the end of the text
-    sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])$', text)
-    
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])$", text)
+
     # Further split by newlines that likely indicate paragraph breaks
     result = []
     for sentence in sentences:
         # Split by double newlines (paragraphs)
-        parts = re.split(r'\n\s*\n', sentence)
+        parts = re.split(r"\n\s*\n", sentence)
         for part in parts:
             # Split by single newlines that are followed by uppercase letters (likely new sentences)
-            subparts = re.split(r'\n(?=[A-Z])', part)
+            subparts = re.split(r"\n(?=[A-Z])", part)
             result.extend(subparts)
-    
+
     # Clean up the results
     return [s.strip() for s in result if s.strip()]
+
 
 def custom_word_tokenize(text):
     """
@@ -94,20 +97,19 @@ def custom_word_tokenize(text):
     """
     # First, replace punctuation with spaces around them to ensure they're separate tokens
     # This regex adds spaces around punctuation
-    text = re.sub(r'([^\w\s])', r' \1 ', text)
-    
+    text = re.sub(r"([^\w\s])", r" \1 ", text)
+
     # Split by whitespace and filter out empty strings
-    words = [word for word in re.split(r'\s+', text) if word]
-    
+    words = [word for word in re.split(r"\s+", text) if word]
+
     return words
+
 
 # Download required resources if not already available
 def download_nltk_data():
     """Download required NLTK data packages if they're not already available."""
-    resources = [
-        ('stopwords', 'corpora/stopwords')
-    ]
-    
+    resources = [("stopwords", "corpora/stopwords")]
+
     for resource, path in resources:
         try:
             nltk.data.find(path)
@@ -116,6 +118,7 @@ def download_nltk_data():
             print(f"Downloading NLTK {resource}...")
             nltk.download(resource, quiet=False)
             print(f"Downloaded NLTK {resource}.")
+
 
 # Download required NLTK data
 download_nltk_data()
@@ -154,70 +157,152 @@ def preprocess_corpus(corpus_files: List[str]) -> Dict[str, Any]:
                     nlp = spacy.load("en_core_web_lg")
                 except OSError:
                     print("No spaCy models found. Using basic NLP processing instead.")
-                    print("To use advanced features, please install a spaCy model manually with:")
+                    print(
+                        "To use advanced features, please install a spaCy model manually with:"
+                    )
                     print("uv pip install en-core-web-sm")
                     spacy_available = False
+
                     # Create a minimal replacement for spaCy's nlp
                     class SimpleDoc:
                         def __init__(self, text):
                             self.text = text
                             # Use our custom sentence tokenizer instead of NLTK's
-                            self.sents = [SimpleSpan(s) for s in custom_sent_tokenize(text)]
-                    
+                            self.sents = [
+                                SimpleSpan(s) for s in custom_sent_tokenize(text)
+                            ]
+
                     class SimpleSpan:
                         def __init__(self, text):
                             self.text = text
                             words = custom_word_tokenize(text)
                             self.tokens = [SimpleToken(w) for w in words]
-                        
+
                         def __len__(self):
                             return len(self.tokens)
-                        
+
                         def __iter__(self):
                             return iter(self.tokens)
-                    
+
                     class SimpleToken:
                         def __init__(self, text):
                             self.text = text
-                            self.pos_ = "NOUN" if text[0].isupper() else "VERB" if text.endswith(('ing', 'ed')) else "ADJ" if text.endswith(('ly')) else "DET" if text.lower() in ('a', 'an', 'the') else "ADP" if text.lower() in ('in', 'on', 'at', 'by', 'for') else "NOUN"
-                            self.dep_ = "nsubj" if text[0].isupper() else "ROOT" if self.pos_ == "VERB" else "dobj" if self.pos_ == "NOUN" else "det" if self.pos_ == "DET" else "prep" if self.pos_ == "ADP" else "amod"
-                    
+                            self.pos_ = (
+                                "NOUN"
+                                if text[0].isupper()
+                                else (
+                                    "VERB"
+                                    if text.endswith(("ing", "ed"))
+                                    else (
+                                        "ADJ"
+                                        if text.endswith(("ly"))
+                                        else (
+                                            "DET"
+                                            if text.lower() in ("a", "an", "the")
+                                            else (
+                                                "ADP"
+                                                if text.lower()
+                                                in ("in", "on", "at", "by", "for")
+                                                else "NOUN"
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                            self.dep_ = (
+                                "nsubj"
+                                if text[0].isupper()
+                                else (
+                                    "ROOT"
+                                    if self.pos_ == "VERB"
+                                    else (
+                                        "dobj"
+                                        if self.pos_ == "NOUN"
+                                        else (
+                                            "det"
+                                            if self.pos_ == "DET"
+                                            else (
+                                                "prep" if self.pos_ == "ADP" else "amod"
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+
                     def simple_nlp(text):
                         return SimpleDoc(text)
-                    
+
                     nlp = simple_nlp
     except Exception as e:
         print(f"Error loading spaCy models: {e}")
         print("Using basic NLP processing instead.")
         spacy_available = False
         # Create a minimal replacement for spaCy's nlp if not already defined
-        if 'nlp' not in locals():
+        if "nlp" not in locals():
+
             class SimpleDoc:
                 def __init__(self, text):
                     self.text = text
                     self.sents = [SimpleSpan(s) for s in custom_sent_tokenize(text)]
-            
+
             class SimpleSpan:
                 def __init__(self, text):
                     self.text = text
                     words = custom_word_tokenize(text)
                     self.tokens = [SimpleToken(w) for w in words]
-                
+
                 def __len__(self):
                     return len(self.tokens)
-                
+
                 def __iter__(self):
                     return iter(self.tokens)
-            
+
             class SimpleToken:
                 def __init__(self, text):
                     self.text = text
-                    self.pos_ = "NOUN" if text[0].isupper() else "VERB" if text.endswith(('ing', 'ed')) else "ADJ" if text.endswith(('ly')) else "DET" if text.lower() in ('a', 'an', 'the') else "ADP" if text.lower() in ('in', 'on', 'at', 'by', 'for') else "NOUN"
-                    self.dep_ = "nsubj" if text[0].isupper() else "ROOT" if self.pos_ == "VERB" else "dobj" if self.pos_ == "NOUN" else "det" if self.pos_ == "DET" else "prep" if self.pos_ == "ADP" else "amod"
-            
+                    self.pos_ = (
+                        "NOUN"
+                        if text[0].isupper()
+                        else (
+                            "VERB"
+                            if text.endswith(("ing", "ed"))
+                            else (
+                                "ADJ"
+                                if text.endswith(("ly"))
+                                else (
+                                    "DET"
+                                    if text.lower() in ("a", "an", "the")
+                                    else (
+                                        "ADP"
+                                        if text.lower()
+                                        in ("in", "on", "at", "by", "for")
+                                        else "NOUN"
+                                    )
+                                )
+                            )
+                        )
+                    )
+                    self.dep_ = (
+                        "nsubj"
+                        if text[0].isupper()
+                        else (
+                            "ROOT"
+                            if self.pos_ == "VERB"
+                            else (
+                                "dobj"
+                                if self.pos_ == "NOUN"
+                                else (
+                                    "det"
+                                    if self.pos_ == "DET"
+                                    else "prep" if self.pos_ == "ADP" else "amod"
+                                )
+                            )
+                        )
+                    )
+
             def simple_nlp(text):
                 return SimpleDoc(text)
-            
+
             nlp = simple_nlp
 
     # Initialize storage structures
@@ -486,8 +571,12 @@ def analyze_syntactic_patterns(corpus_data: Dict[str, Any]) -> Dict[str, Any]:
         "sentence_length_std": np.std(sentence_lengths) if sentence_lengths else 0,
         "sentence_length_dist": sentence_lengths,
         "avg_clauses_per_sentence": avg_clauses,
-        "common_pos_patterns": Counter(pos_patterns).most_common(20) if pos_patterns else [],
-        "common_dependency_patterns": Counter(dependency_patterns).most_common(20) if dependency_patterns else [],
+        "common_pos_patterns": (
+            Counter(pos_patterns).most_common(20) if pos_patterns else []
+        ),
+        "common_dependency_patterns": (
+            Counter(dependency_patterns).most_common(20) if dependency_patterns else []
+        ),
         "passive_voice_ratio": passive_ratio,
     }
 
@@ -758,7 +847,7 @@ def perform_topic_modeling(corpus_data: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "num_topics": 0,
             "topics": [],
-            "error": "Not enough common terms found for topic modeling."
+            "error": "Not enough common terms found for topic modeling.",
         }
 
     # Determine appropriate number of topics based on corpus size
@@ -789,11 +878,7 @@ def perform_topic_modeling(corpus_data: Dict[str, Any]) -> Dict[str, Any]:
         return {"num_topics": num_topics, "topics": topics}
     except ValueError as e:
         print(f"Topic modeling failed: {e}")
-        return {
-            "num_topics": 0,
-            "topics": [],
-            "error": str(e)
-        }
+        return {"num_topics": 0, "topics": [], "error": str(e)}
 
 
 def perform_liwc_analysis(corpus_data: Dict[str, Any]) -> Dict[str, float]:
@@ -1465,7 +1550,7 @@ def generate_persona_profile(
 
     # Extract representative examples
     representative_examples = extract_representative_examples(
-        corpus_data, profile, num_examples=5
+        corpus_data, profile, num_examples=10
     )
     profile["representative_examples"] = representative_examples
 
@@ -1570,10 +1655,12 @@ def main():
         "--output", type=str, default="expert_profile", help="Output file prefix"
     )
     parser.add_argument(
-        "--install-spacy", action="store_true", help="Install spaCy model before running"
+        "--install-spacy",
+        action="store_true",
+        help="Install spaCy model before running",
     )
     args = parser.parse_args()
-    
+
     # Install spaCy model if requested
     if args.install_spacy:
         print("Installing spaCy small model...")
@@ -1582,15 +1669,17 @@ def main():
             # Use a different approach - download the wheel file and install it
             import tempfile
             import urllib.request
-            
+
             # Create a temporary directory
             with tempfile.TemporaryDirectory() as tmpdir:
                 # Download the wheel file
                 wheel_url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl"
-                wheel_file = os.path.join(tmpdir, "en_core_web_sm-3.7.0-py3-none-any.whl")
+                wheel_file = os.path.join(
+                    tmpdir, "en_core_web_sm-3.7.0-py3-none-any.whl"
+                )
                 print(f"Downloading spaCy model from {wheel_url}...")
                 urllib.request.urlretrieve(wheel_url, wheel_file)
-                
+
                 # Install the wheel file
                 subprocess.check_call(["uv", "pip", "install", wheel_file])
                 print("spaCy model installed successfully!")
@@ -1627,10 +1716,15 @@ def main():
     except Exception as e:
         print(f"\nError during profile generation: {e}")
         import traceback
+
         traceback.print_exc()
         print("\nTry installing a spaCy model with one of these commands:")
-        print("uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl")
-        print("Or run with the --install-spacy flag to automatically download and install it.")
+        print(
+            "uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl"
+        )
+        print(
+            "Or run with the --install-spacy flag to automatically download and install it."
+        )
 
 
 if __name__ == "__main__":
