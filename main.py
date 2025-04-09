@@ -52,6 +52,17 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 import spacy
 import nltk
 
+# Vector embeddings processing
+try:
+    from vector_embeddings import (
+        load_embeddings,
+        compute_centroid,
+        compute_variance,
+        group_statistics
+    )
+except ImportError:
+    print("Warning: vector_embeddings module not found. Embeddings analysis will not be available.")
+
 # We'll implement our own word tokenizer to avoid NLTK's punkt_tab dependency
 from nltk.corpus import stopwords
 from nltk.util import ngrams
@@ -1659,6 +1670,9 @@ def main():
         action="store_true",
         help="Install spaCy model before running",
     )
+    parser.add_argument(
+        "--embeddings", type=str, help="Path to CSV file containing vector embeddings"
+    )
     args = parser.parse_args()
 
     # Install spaCy model if requested
@@ -1707,6 +1721,40 @@ def main():
         return
 
     print(f"Found {len(corpus_files)} files to analyze")
+
+    # Process embeddings if provided
+    if args.embeddings:
+        try:
+            print("\nProcessing vector embeddings...")
+            embeddings_df = load_embeddings(args.embeddings)
+            
+            # Compute centroid and variance
+            centroid = compute_centroid(embeddings_df)
+            total_variance, per_dim_variance = compute_variance(embeddings_df, centroid)
+            
+            # Save results
+            embeddings_output = f"{args.output}_embeddings_analysis.json"
+            embeddings_results = {
+                "total_variance": float(total_variance),
+                "max_dimension_variance": float(np.max(per_dim_variance)),
+                "min_dimension_variance": float(np.min(per_dim_variance)),
+                "centroid_norm": float(np.linalg.norm(centroid)),
+            }
+            
+            # Add group statistics if available
+            if 'group_tag' in embeddings_df.columns:
+                stats_df = group_statistics(embeddings_df)
+                embeddings_results["group_stats"] = stats_df.to_dict(orient='records')
+            
+            with open(embeddings_output, 'w', encoding='utf-8') as f:
+                json.dump(embeddings_results, f, indent=2)
+            
+            print(f"Embeddings analysis saved to {embeddings_output}")
+            
+        except Exception as e:
+            print(f"Error processing embeddings: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Generate the profile
     try:
