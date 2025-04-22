@@ -1,0 +1,17 @@
+[project]
+name = "personas"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+   "numpy",
+   "pandas",
+   "scikit-learn",
+   "spacy",  
+   "nltk",
+   "textstat",
+   "gensim",
+   "matplotlib",
+   "seaborn"
+]

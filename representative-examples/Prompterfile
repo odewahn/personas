@@ -1,0 +1,9 @@
+load *.md
+# In this instance we just want one file.  Remove the next line for everything
+select "block_tag like 'tech%'"
+transform token-split --n=200
+complete task-create-representative-samples.md --model=gpt-4o
+complete task-refomat-output.md --model=gpt-4o
+squash
+retag samples.md
+write
